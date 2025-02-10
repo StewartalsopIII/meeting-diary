@@ -3,6 +3,8 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import os from "os";
+import chalk from "chalk";
+import inquirer from "inquirer";
 import {
   ProcessedTranscript,
   Speaker,
@@ -289,18 +291,14 @@ export function formatTranscriptAsText(
 export function formatTranscriptAsMarkdown(
   transcript: ProcessedTranscript
 ): string {
-  const speakerSections = new Map<string, string[]>();
+  // Helper to format time
+  const formatTime = (ms: number): string => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
 
-  // Group segments by speaker
-  transcript.segments.forEach((segment) => {
-    const speakerId = segment.speaker.id;
-    if (!speakerSections.has(speakerId)) {
-      speakerSections.set(speakerId, []);
-    }
-    speakerSections.get(speakerId)!.push(segment.text);
-  });
-
-  // Build markdown with speaker sections
+  // Header with metadata
   const parts: string[] = [
     `# Meeting Transcript\n`,
     `*Processed on ${new Date(
@@ -311,12 +309,163 @@ export function formatTranscriptAsMarkdown(
     )} minutes*\n\n`,
   ];
 
+  // Add speaker list
+  parts.push("## Speakers\n");
   transcript.speakers.forEach((speaker) => {
-    const speakerTexts = speakerSections.get(speaker.id);
-    if (speakerTexts && speakerTexts.length > 0) {
-      parts.push(`## ${speaker.name}\n\n${speakerTexts.join("\n\n")}\n\n`);
-    }
+    parts.push(`- **${speaker.name}**\n`);
+  });
+  parts.push("\n## Transcript\n\n");
+
+  // Process segments in chronological order
+  transcript.segments.forEach((segment) => {
+    parts.push(
+      `[${formatTime(segment.start)}] **${segment.speaker.name}**: ${
+        segment.text
+      }\n\n`
+    );
   });
 
   return parts.join("");
+}
+
+interface SpeakerExample {
+  speaker: Speaker;
+  segment: TranscriptSegment;
+  context: {
+    before?: TranscriptSegment;
+    after?: TranscriptSegment;
+  };
+}
+
+function findBestExamplesForSpeaker(
+  transcript: ProcessedTranscript,
+  speakerId: string,
+  numExamples: number = 3
+): SpeakerExample[] {
+  // Get all segments for this speaker
+  const speakerSegments = transcript.segments.filter(
+    (s) => s.speaker.id === speakerId
+  );
+
+  // Sort by length to get the most substantial contributions
+  const sortedSegments = [...speakerSegments].sort(
+    (a, b) => b.text.length - a.text.length
+  );
+
+  // Take top N segments and find their context
+  return sortedSegments.slice(0, numExamples).map((segment) => {
+    const segmentIndex = transcript.segments.findIndex((s) => s === segment);
+    return {
+      speaker: segment.speaker,
+      segment,
+      context: {
+        before:
+          segmentIndex > 0 ? transcript.segments[segmentIndex - 1] : undefined,
+        after:
+          segmentIndex < transcript.segments.length - 1
+            ? transcript.segments[segmentIndex + 1]
+            : undefined,
+      },
+    };
+  });
+}
+
+export async function identifySpeakers(
+  transcript: ProcessedTranscript
+): Promise<Record<string, string>> {
+  const speakerMap: Record<string, string> = {};
+
+  // Process each speaker
+  for (const speaker of transcript.speakers) {
+    console.log(chalk.cyan("\n----------------------------------------"));
+    console.log(chalk.bold(`Identifying ${speaker.name}...\n`));
+
+    // Show identified speakers so far
+    if (Object.keys(speakerMap).length > 0) {
+      console.log(chalk.dim("Speakers identified so far:"));
+      Object.entries(speakerMap).forEach(([id, name]) => {
+        const originalName =
+          transcript.speakers.find((s) => s.id === id)?.name || "Unknown";
+        console.log(chalk.dim(`- ${originalName} → ${name}`));
+      });
+      console.log();
+    }
+
+    // Get best examples
+    const examples = findBestExamplesForSpeaker(transcript, speaker.id);
+
+    // Show examples with context
+    examples.forEach((example, index) => {
+      console.log(chalk.yellow(`Example ${index + 1}:`));
+      if (example.context.before) {
+        const beforeSpeaker = example.context.before.speaker;
+        const knownName = speakerMap[beforeSpeaker.id];
+        console.log(
+          chalk.dim(
+            `${beforeSpeaker.name}${knownName ? ` (${knownName})` : ""}: ${
+              example.context.before.text
+            }`
+          )
+        );
+      }
+      console.log(
+        chalk.green(`${example.speaker.name}: ${example.segment.text}`)
+      );
+      if (example.context.after) {
+        const afterSpeaker = example.context.after.speaker;
+        const knownName = speakerMap[afterSpeaker.id];
+        console.log(
+          chalk.dim(
+            `${afterSpeaker.name}${knownName ? ` (${knownName})` : ""}: ${
+              example.context.after.text
+            }`
+          )
+        );
+      }
+      console.log();
+    });
+
+    // Ask for speaker identification
+    const { name } = await inquirer.prompt<{ name: string }>([
+      {
+        type: "input",
+        name: "name",
+        message: "Who is this speaker?",
+        validate: (input: string) => {
+          if (!input.trim()) return "Speaker name cannot be empty";
+          return true;
+        },
+      },
+    ]);
+
+    speakerMap[speaker.id] = name.trim();
+  }
+
+  return speakerMap;
+}
+
+export function updateTranscriptSpeakers(
+  transcript: ProcessedTranscript,
+  speakerMap: Record<string, string>
+): ProcessedTranscript {
+  // Update speaker names
+  const updatedSpeakers = transcript.speakers.map((speaker) => ({
+    ...speaker,
+    name: speakerMap[speaker.id] || speaker.name,
+  }));
+
+  // Update segment speaker names
+  const updatedSegments = transcript.segments.map((segment) => ({
+    ...segment,
+    speaker: {
+      ...segment.speaker,
+      name: speakerMap[segment.speaker.id] || segment.speaker.name,
+    },
+  }));
+
+  return {
+    ...transcript,
+    speakers: updatedSpeakers,
+    segments: updatedSegments,
+  };
 }

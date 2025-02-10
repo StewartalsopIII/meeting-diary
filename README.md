@@ -46,9 +46,23 @@ The default format (markdown) organizes the transcript by speaker, making it eas
 
 ### Known Speakers
 
+You can identify speakers in two ways:
+
+1. Interactive identification (default):
+
+```bash
+meeting-diary input.mp4
+```
+
+The tool will show you the most significant contributions from each speaker and ask you to identify them.
+
+2. Specify speakers up front:
+
 ```bash
 meeting-diary input.mp4 -s "John Smith" "Jane Doe"
 ```
+
+The interactive mode helps you accurately identify speakers by showing their most substantial contributions in context. You can disable it with `--no-interactive` if needed.
 
 ### All Options
 
@@ -56,12 +70,13 @@ meeting-diary input.mp4 -s "John Smith" "Jane Doe"
 Options:
   -o, --output <file>     Output file (defaults to input file name with new extension)
   -f, --format <format>   Output format (json, txt, srt, md) (default: "md")
-  -s, --speakers <names>  Known speaker names
+  -s, --speakers <names>  Known speaker names (skip interactive identification)
   --skip-diarization     Skip speaker diarization
   -v, --verbose          Show verbose output
   --api-key <key>        AssemblyAI API key (will prompt if not provided)
   --no-cache            Disable caching of uploads and transcripts
   --cache-dir <dir>     Directory to store cache files
+  --no-interactive      Skip interactive speaker identification
   -h, --help             display help for command
 ```
 

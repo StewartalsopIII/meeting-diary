@@ -14,6 +14,8 @@ import {
   formatTranscriptAsText,
   formatTranscriptAsMarkdown,
   validateApiKey,
+  identifySpeakers,
+  updateTranscriptSpeakers,
 } from "./lib";
 import type { Config } from "./types";
 
@@ -94,7 +96,10 @@ async function main() {
       "Output file (defaults to input file name with new extension)"
     )
     .option("-f, --format <format>", "Output format (json, txt, srt, md)", "md")
-    .option("-s, --speakers <names...>", "Known speaker names")
+    .option(
+      "-s, --speakers <names...>",
+      "Known speaker names (skip interactive identification)"
+    )
     .option("--skip-diarization", "Skip speaker diarization")
     .option("-v, --verbose", "Show verbose output")
     .option(
@@ -103,6 +108,7 @@ async function main() {
     )
     .option("--no-cache", "Disable caching of uploads and transcripts")
     .option("--cache-dir <dir>", "Directory to store cache files")
+    .option("--no-interactive", "Skip interactive speaker identification")
     .action(async (input, options) => {
       const spinner = ora();
       try {
@@ -140,8 +146,8 @@ async function main() {
 
         // Process the file
         spinner.start("Processing audio file...");
-        const result = await processAudioFile(input, apiKey, {
-          knownSpeakers,
+        let result = await processAudioFile(input, apiKey, {
+          knownSpeakers: options.speakers ? knownSpeakers : undefined,
           skipDiarization: options.skipDiarization,
           cache: {
             enabled: options.cache !== false,
@@ -149,7 +155,45 @@ async function main() {
           },
         });
 
+        // If no speakers provided and interactive mode is enabled, identify speakers
+        if (
+          !options.speakers &&
+          options.interactive !== false &&
+          !options.skipDiarization
+        ) {
+          spinner.stop();
+          console.log(
+            chalk.cyan("\nLet's identify the speakers in this recording.\n")
+          );
+          console.log(
+            chalk.dim(
+              "I'll show you the most significant contributions from each speaker."
+            )
+          );
+          console.log(
+            chalk.dim("Please help identify who is speaking in each case.\n")
+          );
+
+          const speakerMap = await identifySpeakers(result);
+          result = updateTranscriptSpeakers(result, speakerMap);
+
+          // Update cache with identified speakers
+          if (options.cache !== false) {
+            spinner.start("Updating cache with speaker identifications...");
+            await processAudioFile(input, apiKey, {
+              knownSpeakers: speakerMap,
+              skipDiarization: options.skipDiarization,
+              cache: {
+                enabled: true,
+                cacheDir: options.cacheDir,
+              },
+            });
+            spinner.stop();
+          }
+        }
+
         // Format output
+        spinner.start("Formatting transcript...");
         let output: string;
         switch (options.format) {
           case "srt":
@@ -174,7 +218,9 @@ async function main() {
         if (options.verbose) {
           console.log("\nProcessing summary:");
           console.log(
-            `- Duration: ${Math.round(result.metadata.duration / 60)} minutes`
+            `- Duration: ${Math.round(
+              result.metadata.duration / 60000
+            )} minutes`
           );
           console.log(`- Speakers detected: ${result.speakers.length}`);
           console.log(`- Segments: ${result.segments.length}`);
