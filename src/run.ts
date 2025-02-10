@@ -12,6 +12,7 @@ import {
   processAudioFile,
   formatTranscriptAsSRT,
   formatTranscriptAsText,
+  formatTranscriptAsMarkdown,
   validateApiKey,
 } from "./lib";
 import type { Config } from "./types";
@@ -30,6 +31,14 @@ const config = new Conf<Config>({
     knownSpeakers: {
       type: "object",
       default: {},
+    },
+    cacheEnabled: {
+      type: "boolean",
+      default: true,
+    },
+    cacheDir: {
+      type: "string",
+      default: undefined,
     },
   },
 });
@@ -84,7 +93,7 @@ async function main() {
       "-o, --output <file>",
       "Output file (defaults to input file name with new extension)"
     )
-    .option("-f, --format <format>", "Output format (json, txt, srt)", "json")
+    .option("-f, --format <format>", "Output format (json, txt, srt, md)", "md")
     .option("-s, --speakers <names...>", "Known speaker names")
     .option("--skip-diarization", "Skip speaker diarization")
     .option("-v, --verbose", "Show verbose output")
@@ -92,6 +101,8 @@ async function main() {
       "--api-key <key>",
       "AssemblyAI API key (will prompt if not provided)"
     )
+    .option("--no-cache", "Disable caching of uploads and transcripts")
+    .option("--cache-dir <dir>", "Directory to store cache files")
     .action(async (input, options) => {
       const spinner = ora();
       try {
@@ -132,6 +143,10 @@ async function main() {
         const result = await processAudioFile(input, apiKey, {
           knownSpeakers,
           skipDiarization: options.skipDiarization,
+          cache: {
+            enabled: options.cache !== false,
+            cacheDir: options.cacheDir,
+          },
         });
 
         // Format output
@@ -142,6 +157,9 @@ async function main() {
             break;
           case "txt":
             output = formatTranscriptAsText(result);
+            break;
+          case "md":
+            output = formatTranscriptAsMarkdown(result);
             break;
           default:
             output = JSON.stringify(result, null, 2);

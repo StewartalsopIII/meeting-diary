@@ -32,14 +32,17 @@ bun install -g meeting-diary
 meeting-diary input.mp4
 ```
 
-This will process the file and output the transcript in JSON format.
+This will process the file and output the transcript in diarized markdown format, with sections for each speaker.
 
 ### Specify Output Format
 
 ```bash
-meeting-diary input.mp4 -f txt
-meeting-diary input.mp4 -f srt
+meeting-diary input.mp4 -f txt  # Simple text format
+meeting-diary input.mp4 -f srt  # SubRip subtitle format
+meeting-diary input.mp4 -f json # JSON format with detailed metadata
 ```
+
+The default format (markdown) organizes the transcript by speaker, making it easy to read and analyze each participant's contributions.
 
 ### Known Speakers
 
@@ -52,13 +55,30 @@ meeting-diary input.mp4 -s "John Smith" "Jane Doe"
 ```bash
 Options:
   -o, --output <file>     Output file (defaults to input file name with new extension)
-  -f, --format <format>   Output format (json, txt, srt) (default: "json")
+  -f, --format <format>   Output format (json, txt, srt, md) (default: "md")
   -s, --speakers <names>  Known speaker names
   --skip-diarization     Skip speaker diarization
   -v, --verbose          Show verbose output
   --api-key <key>        AssemblyAI API key (will prompt if not provided)
+  --no-cache            Disable caching of uploads and transcripts
+  --cache-dir <dir>     Directory to store cache files
   -h, --help             display help for command
 ```
+
+### Caching
+
+The tool automatically caches uploaded audio files and transcripts to avoid unnecessary re-processing. This is especially useful when:
+
+- Experimenting with different output formats
+- Re-running transcription with different speaker names
+- Processing the same file multiple times
+
+Cache files are stored in your system's temporary directory by default. You can:
+
+- Disable caching with `--no-cache`
+- Change cache location with `--cache-dir`
+- Cache is enabled by default for faster processing
+- Cache files are automatically cleaned up by your OS's temp file management
 
 ## API Key
 

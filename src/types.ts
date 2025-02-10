@@ -4,6 +4,8 @@ export const ConfigSchema = z.object({
   assemblyAiKey: z.string().optional(),
   defaultOutputDir: z.string().optional(),
   knownSpeakers: z.record(z.string(), z.string()).optional(),
+  cacheDir: z.string().optional(),
+  cacheEnabled: z.boolean().default(true),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -47,4 +49,19 @@ export interface CliOptions {
   verbose?: boolean;
   skipDiarization?: boolean;
   assemblyAiKey?: string;
+}
+
+export interface CacheEntry {
+  timestamp: string;
+  hash: string;
+  data: {
+    audioUrl?: string;
+    transcriptId?: string;
+    transcript?: ProcessedTranscript;
+  };
+}
+
+export interface CacheOptions {
+  enabled?: boolean;
+  cacheDir?: string;
 }
