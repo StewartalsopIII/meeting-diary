@@ -5,11 +5,12 @@ A powerful CLI tool to transcribe and diarize audio/video files using AssemblyAI
 ## Features
 
 - 🎙️ Automatic speaker diarization
-- 👥 Support for known speaker identification
-- 📝 Multiple output formats (JSON, TXT, SRT)
+- 👥 Interactive speaker identification with context
+- 📝 Multiple output formats (Markdown, SRT, TXT, JSON)
+- 🕒 Timestamps for each segment
 - 🔑 Secure API key management
+- 💾 Smart caching for faster processing
 - 💻 Cross-platform support
-- 🚀 Easy to use CLI interface
 
 ## Installation
 
@@ -32,19 +33,51 @@ bun install -g meeting-diary
 meeting-diary input.mp4
 ```
 
-This will process the file and output the transcript in diarized markdown format, with sections for each speaker.
+This will:
 
-### Specify Output Format
+1. Transcribe and diarize your audio/video file
+2. Help you identify each speaker by showing their most significant contributions
+3. Generate a timestamped transcript in markdown format
+
+### Output Formats
 
 ```bash
 meeting-diary input.mp4 -f txt  # Simple text format
 meeting-diary input.mp4 -f srt  # SubRip subtitle format
 meeting-diary input.mp4 -f json # JSON format with detailed metadata
+meeting-diary input.mp4 -f md   # Markdown format (default)
 ```
 
-The default format (markdown) organizes the transcript by speaker, making it easy to read and analyze each participant's contributions.
+#### Markdown Format (Default)
 
-### Known Speakers
+The markdown format includes:
+
+- Timestamp for each segment
+- Speaker list
+- Chronological transcript with speaker attribution
+- Processing metadata
+
+Example:
+
+```markdown
+# Meeting Transcript
+
+_Processed on 2/10/2024, 3:43:26 PM_
+_Duration: 5 minutes_
+
+## Speakers
+
+- **Hrishi**
+- **Alok**
+
+## Transcript
+
+[0:00] **Hrishi**: Yeah, didn't have a chance yet...
+[0:15] **Alok**: No engagement in terms of my Mushroom photos.
+[0:18] **Hrishi**: Basically Samsung phones have the ability...
+```
+
+### Speaker Identification
 
 You can identify speakers in two ways:
 
@@ -54,15 +87,18 @@ You can identify speakers in two ways:
 meeting-diary input.mp4
 ```
 
-The tool will show you the most significant contributions from each speaker and ask you to identify them.
+The tool will:
+
+- Show you the most significant contributions from each speaker
+- Display context (what was said before and after)
+- Show previously identified speakers for context
+- Ask you to identify each speaker in turn
 
 2. Specify speakers up front:
 
 ```bash
 meeting-diary input.mp4 -s "John Smith" "Jane Doe"
 ```
-
-The interactive mode helps you accurately identify speakers by showing their most substantial contributions in context. You can disable it with `--no-interactive` if needed.
 
 ### All Options
 
