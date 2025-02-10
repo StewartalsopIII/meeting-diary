@@ -12,7 +12,23 @@ A powerful CLI tool to transcribe and diarize audio/video files using AssemblyAI
 - 💾 Smart caching for faster processing
 - 💻 Cross-platform support
 
-## Installation
+## Installation & Usage
+
+### Quick Start (Recommended)
+
+You can use `meeting-diary` directly without installation using `npx` or `bunx`:
+
+```bash
+# Using npx (Node.js)
+npx meeting-diary input.mp4
+
+# Using bunx (Bun)
+bunx meeting-diary input.mp4
+```
+
+### Global Installation (Alternative)
+
+If you prefer to install the tool globally:
 
 ```bash
 # Using npm
@@ -23,6 +39,12 @@ yarn global add meeting-diary
 
 # Using bun
 bun install -g meeting-diary
+```
+
+Then use it as:
+
+```bash
+meeting-diary input.mp4
 ```
 
 ## Usage
