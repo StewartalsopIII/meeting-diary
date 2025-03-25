@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Diary App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        .upload-container {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s;
+            background-color: #f9f9f9;
+        }
+        
+        .upload-container.highlight {
+            border-color: #007bff;
+            background-color: #f0f7ff;
+        }
+        
+        .upload-text {
+            margin-bottom: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+        
+        #file-input {
+            display: none;
+        }
+        
+        .upload-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        .upload-btn:hover {
+            background-color: #0069d9;
+        }
+        
+        #file-name {
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        
+        #api-status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .api-configured {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .api-not-configured {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        #format-container {
+            margin: 20px 0;
+        }
+        
+        .format-option {
+            margin-right: 15px;
+        }
+        
+        #process-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            margin: 20px auto;
+            transition: background-color 0.3s;
+        }
+        
+        #process-btn:hover {
+            background-color: #218838;
+        }
+        
+        #process-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        #output-container {
+            margin-top: 30px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        #output-content {
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Meeting Diary</h1>
+    
+    <div id="api-status"></div>
+    
+    <div id="upload-container" class="upload-container">
+        <div class="upload-text">Drag and drop your audio/video file here</div>
+        <input type="file" id="file-input" accept="audio/*,video/*">
+        <button class="upload-btn" onclick="document.getElementById('file-input').click()">Or Select File</button>
+        <div id="file-name"></div>
+    </div>
+    
+    <div id="format-container">
+        <label>Output Format:</label>
+        <div>
+            <label class="format-option">
+                <input type="radio" name="format" value="md" checked> Markdown
+            </label>
+            <label class="format-option">
+                <input type="radio" name="format" value="txt"> Text
+            </label>
+            <label class="format-option">
+                <input type="radio" name="format" value="srt"> SRT
+            </label>
+            <label class="format-option">
+                <input type="radio" name="format" value="json"> JSON
+            </label>
+        </div>
+    </div>
+    
+    <button id="process-btn" disabled>Process File</button>
+    
+    <div id="status"></div>
+    
+    <div id="output-container">
+        <h3>Output:</h3>
+        <div id="output-content"></div>
+    </div>
+    
+    <script>
+        const uploadContainer = document.getElementById('upload-container');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name');
+        const apiStatus = document.getElementById('api-status');
+        const processBtn = document.getElementById('process-btn');
+        const statusDisplay = document.getElementById('status');
+        const outputContainer = document.getElementById('output-container');
+        const outputContent = document.getElementById('output-content');
+        
+        let selectedFile = null;
+        let apiKeyConfigured = false;
+        
+        // Check if API key is configured
+        checkApiKeyConfig();
+        
+        function checkApiKeyConfig() {
+            fetch('/api/check-config')
+                .then(response => response.json())
+                .then(data => {
+                    apiKeyConfigured = data.configured;
+                    if (apiKeyConfigured) {
+                        apiStatus.innerHTML = "AssemblyAI API key is configured";
+                        apiStatus.className = "api-configured";
+                    } else {
+                        apiStatus.innerHTML = "Warning: AssemblyAI API key is not configured. Please add it to your .env file.";
+                        apiStatus.className = "api-not-configured";
+                    }
+                    updateProcessButton();
+                })
+                .catch(error => {
+                    console.error('Error checking API configuration:', error);
+                    apiStatus.innerHTML = "Error checking API configuration";
+                    apiStatus.className = "api-not-configured";
+                });
+        }
+        
+        // Drag and drop functionality
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadContainer.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadContainer.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadContainer.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            uploadContainer.classList.add('highlight');
+        }
+        
+        function unhighlight() {
+            uploadContainer.classList.remove('highlight');
+        }
+        
+        uploadContainer.addEventListener('drop', handleDrop, false);
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                handleFiles(files);
+            }
+        }
+        
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                handleFiles(this.files);
+            }
+        });
+        
+        function handleFiles(files) {
+            selectedFile = files[0];
+            fileNameDisplay.textContent = `Selected file: ${selectedFile.name}`;
+            updateProcessButton();
+        }
+        
+        function updateProcessButton() {
+            processBtn.disabled = !(selectedFile && apiKeyConfigured);
+        }
+        
+        processBtn.addEventListener('click', processFile);
+        
+        function processFile() {
+            if (!selectedFile) {
+                showStatus('Please select a file.', 'error');
+                return;
+            }
+            
+            if (!apiKeyConfigured) {
+                showStatus('API key is not configured. Please add it to your .env file.', 'error');
+                return;
+            }
+            
+            const format = document.querySelector('input[name="format"]:checked').value;
+            
+            // Create a FormData object to handle the file
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('format', format);
+            
+            // Show processing status
+            showStatus('<div class="spinner"></div> Processing your file. This may take a while...', 'info');
+            processBtn.disabled = true;
+            
+            // Send the file to the server endpoint
+            fetch('/api/transcribe', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(text || 'An error occurred during processing');
+                    });
+                }
+                return response.text();
+            })
+            .then(data => {
+                showStatus('File processed successfully!', 'success');
+                displayOutput(data);
+            })
+            .catch(error => {
+                showStatus(`Error: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                processBtn.disabled = !(selectedFile && apiKeyConfigured);
+            });
+        }
+        
+        function showStatus(message, type) {
+            statusDisplay.innerHTML = message;
+            statusDisplay.className = '';
+            statusDisplay.classList.add(type);
+            statusDisplay.style.display = 'block';
+        }
+        
+        function displayOutput(content) {
+            outputContent.textContent = content;
+            outputContainer.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
