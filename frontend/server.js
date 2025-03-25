@@ -49,7 +49,8 @@ app.post('/api/transcribe', upload.single('file'), (req, res) => {
     }
     
     // Run the meeting-diary command
-    const command = `ASSEMBLYAI_API_KEY=${apiKey} meeting-diary "${filePath}" -f ${format} -o "${outputPath}" --no-interactive`;
+    const meetingDiaryPath = process.env.MEETING_DIARY_PATH || 'meeting-diary';
+    const command = `ASSEMBLYAI_API_KEY=${apiKey} ${meetingDiaryPath} "${filePath}" -f ${format} -o "${outputPath}" --no-interactive`;
     
     exec(command, (error, stdout, stderr) => {
         if (error) {
