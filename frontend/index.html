@@ -158,6 +158,44 @@
             margin-right: 10px;
         }
         
+        /* Speaker input styling */
+        #speakers-container {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .speaker-entry {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .speaker-name {
+            flex: 1;
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        #add-speaker-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        #add-speaker-btn:hover {
+            background-color: #5a6268;
+        }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -194,6 +232,19 @@
         </div>
     </div>
     
+    <div id="speakers-container">
+        <label style="font-weight: bold; display: block; margin-bottom: 10px;">Speaker Names (Optional):</label>
+        <p style="font-size: 14px; color: #6c757d; margin-bottom: 15px;">
+            Enter names for speakers in your audio/video file. This helps improve transcription accuracy and readability.
+        </p>
+        <div id="speakers-list">
+            <div class="speaker-entry">
+                <input type="text" placeholder="Speaker 1" class="speaker-name">
+            </div>
+        </div>
+        <button id="add-speaker-btn">Add Speaker</button>
+    </div>
+    
     <button id="process-btn" disabled>Process File</button>
     
     <div id="status"></div>
@@ -212,12 +263,54 @@
         const statusDisplay = document.getElementById('status');
         const outputContainer = document.getElementById('output-container');
         const outputContent = document.getElementById('output-content');
+        const speakersList = document.getElementById('speakers-list');
+        const addSpeakerBtn = document.getElementById('add-speaker-btn');
         
         let selectedFile = null;
         let apiKeyConfigured = false;
+        let speakerCount = 1;
         
         // Check if API key is configured
         checkApiKeyConfig();
+        
+        // Set up speaker management
+        addSpeakerBtn.addEventListener('click', addSpeakerField);
+        
+        function addSpeakerField() {
+            speakerCount++;
+            const speakerEntry = document.createElement('div');
+            speakerEntry.className = 'speaker-entry';
+            
+            const speakerInput = document.createElement('input');
+            speakerInput.type = 'text';
+            speakerInput.placeholder = `Speaker ${speakerCount}`;
+            speakerInput.className = 'speaker-name';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.innerHTML = '✖';
+            removeBtn.style = 'background-color: #dc3545; color: white; border: none; border-radius: 4px; width: 30px; height: 30px; cursor: pointer;';
+            removeBtn.onclick = function() {
+                speakersList.removeChild(speakerEntry);
+            };
+            
+            speakerEntry.appendChild(speakerInput);
+            speakerEntry.appendChild(removeBtn);
+            speakersList.appendChild(speakerEntry);
+        }
+        
+        function getSpeakerNames() {
+            const speakerInputs = document.querySelectorAll('.speaker-name');
+            const speakerNames = [];
+            
+            speakerInputs.forEach(input => {
+                const name = input.value.trim();
+                if (name) {
+                    speakerNames.push(name);
+                }
+            });
+            
+            return speakerNames;
+        }
         
         function checkApiKeyConfig() {
             fetch('/api/check-config')
@@ -307,11 +400,17 @@
             }
             
             const format = document.querySelector('input[name="format"]:checked').value;
+            const speakerNames = getSpeakerNames();
             
             // Create a FormData object to handle the file
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('format', format);
+            
+            // Add speaker names if any are provided
+            if (speakerNames.length > 0) {
+                formData.append('speakers', JSON.stringify(speakerNames));
+            }
             
             // Show processing status
             showStatus('<div class="spinner"></div> Processing your file. This may take a while...', 'info');

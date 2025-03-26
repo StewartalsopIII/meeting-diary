@@ -48,10 +48,25 @@ app.post('/api/transcribe', upload.single('file'), (req, res) => {
         fs.mkdirSync(outputsDir);
     }
     
+    // Get speaker names if provided
+    let speakersOption = '';
+    if (req.body.speakers) {
+        try {
+            const speakers = JSON.parse(req.body.speakers);
+            if (Array.isArray(speakers) && speakers.length > 0) {
+                // Format speakers for command line: -s "Speaker 1" "Speaker 2" ...
+                speakersOption = `-s ${speakers.map(name => `"${name}"`).join(' ')}`;
+            }
+        } catch (err) {
+            console.error(`Error parsing speakers: ${err.message}`);
+        }
+    }
+    
     // Run the meeting-diary command
     const meetingDiaryPath = process.env.MEETING_DIARY_PATH || 'meeting-diary';
-    const command = `ASSEMBLYAI_API_KEY=${apiKey} ${meetingDiaryPath} "${filePath}" -f ${format} -o "${outputPath}" --no-interactive`;
+    const command = `ASSEMBLYAI_API_KEY=${apiKey} ${meetingDiaryPath} "${filePath}" -f ${format} -o "${outputPath}" ${speakersOption} --no-interactive`;
     
+    console.log(`Executing command: ${command}`);
     exec(command, (error, stdout, stderr) => {
         if (error) {
             console.error(`Error: ${error.message}`);
