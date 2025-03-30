@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Diary - Login</title>
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        .auth-container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 30px auto;
+            max-width: 500px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        .auth-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            width: 100%;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .auth-btn:hover {
+            background-color: #0069d9;
+        }
+        
+        .auth-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .toggle-form {
+            text-align: center;
+            margin-top: 20px;
+            color: #6c757d;
+        }
+        
+        .toggle-form a {
+            color: #007bff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .toggle-form a:hover {
+            text-decoration: underline;
+        }
+        
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Meeting Diary</h1>
+    
+    <div class="auth-container">
+        <div id="login-form">
+            <h2 style="text-align: center; margin-top: 0;">Log In</h2>
+            <div class="form-group">
+                <label for="login-email">Email</label>
+                <input type="email" id="login-email" placeholder="Your email">
+            </div>
+            <div class="form-group">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="Your password">
+            </div>
+            <button id="login-btn" class="auth-btn">Log In</button>
+            <div class="toggle-form">
+                Don't have an account? <a id="show-signup">Sign Up</a>
+            </div>
+        </div>
+        
+        <div id="signup-form" style="display: none;">
+            <h2 style="text-align: center; margin-top: 0;">Sign Up</h2>
+            <div class="form-group">
+                <label for="signup-email">Email</label>
+                <input type="email" id="signup-email" placeholder="Your email">
+            </div>
+            <div class="form-group">
+                <label for="signup-password">Password</label>
+                <input type="password" id="signup-password" placeholder="Choose a password">
+            </div>
+            <div class="form-group">
+                <label for="signup-confirm">Confirm Password</label>
+                <input type="password" id="signup-confirm" placeholder="Confirm your password">
+            </div>
+            <button id="signup-btn" class="auth-btn">Sign Up</button>
+            <div class="toggle-form">
+                Already have an account? <a id="show-login">Log In</a>
+            </div>
+        </div>
+        
+        <div id="status"></div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // DOM Elements
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
+        const showSignupLink = document.getElementById('show-signup');
+        const showLoginLink = document.getElementById('show-login');
+        const loginBtn = document.getElementById('login-btn');
+        const signupBtn = document.getElementById('signup-btn');
+        const statusDisplay = document.getElementById('status');
+        
+        // Toggle between login and signup forms
+        showSignupLink.addEventListener('click', () => {
+            loginForm.style.display = 'none';
+            signupForm.style.display = 'block';
+        });
+        
+        showLoginLink.addEventListener('click', () => {
+            signupForm.style.display = 'none';
+            loginForm.style.display = 'block';
+        });
+        
+        // Initialize Supabase client - we'll fetch the actual values from the server
+        let supabase;
+        
+        // Get Supabase configuration and initialize client
+        async function initSupabase() {
+            try {
+                const response = await fetch('/api/supabase-config');
+                const config = await response.json();
+                
+                if (!config.url || !config.anon_key) {
+                    showStatus('Supabase configuration is incomplete. Please check your server settings.', 'error');
+                    return;
+                }
+                
+                // Initialize Supabase with the fetched configuration
+                supabase = window.supabase.createClient(config.url, config.anon_key);
+                
+                // Now that Supabase is initialized, check if user is already logged in
+                checkAuth();
+            } catch (error) {
+                console.error('Error initializing Supabase:', error);
+                showStatus('Failed to initialize authentication. Please refresh the page or try again later.', 'error');
+            }
+        }
+        
+        // Check if user is already logged in
+        async function checkAuth() {
+            try {
+                const { data, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    console.error('Auth check error:', error);
+                    return;
+                }
+                
+                if (data && data.user) {
+                    // User is already authenticated, redirect to main page
+                    window.location.href = '/index.html';
+                }
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+            }
+        }
+        
+        // Initialize Supabase on page load
+        initSupabase();
+        
+        // Handle signup
+        signupBtn.addEventListener('click', async () => {
+            // Check if Supabase is initialized
+            if (!supabase) {
+                showStatus('Authentication service is not initialized. Please refresh the page.', 'error');
+                return;
+            }
+            
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const confirmPassword = document.getElementById('signup-confirm').value;
+            
+            // Basic form validation
+            if (!email || !password || !confirmPassword) {
+                showStatus('Please fill in all fields.', 'error');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showStatus('Passwords do not match.', 'error');
+                return;
+            }
+            
+            // Show loading state
+            signupBtn.disabled = true;
+            showStatus('<div class="spinner"></div> Creating your account...', 'info');
+            
+            // Call Supabase signup
+            try {
+                console.log('Attempting signup with:', { email }); // No password logging
+                
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                });
+                
+                console.log('Signup response:', { data: data ? 'data received' : 'no data', error });
+                
+                if (error) throw error;
+                
+                if (data.user && data.user.identities && data.user.identities.length === 0) {
+                    showStatus('This email address is already registered. Please log in instead.', 'error');
+                    signupBtn.disabled = false;
+                    return;
+                }
+                
+                showStatus('Account created successfully! Please check your email to confirm your account.', 'success');
+                
+                // Some Supabase projects may be set up to auto-confirm new users
+                // In which case we can just redirect to the main page
+                if (data.user && !data.user.email_confirmed_at) {
+                    console.log('Email confirmation required');
+                } else {
+                    console.log('No email confirmation required, redirecting shortly');
+                    setTimeout(() => {
+                        window.location.href = '/index.html';
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('Signup error:', error);
+                showStatus(`Error: ${error.message || 'Failed to create account'}`, 'error');
+                signupBtn.disabled = false;
+            }
+        });
+        
+        // Handle login
+        loginBtn.addEventListener('click', async () => {
+            // Check if Supabase is initialized
+            if (!supabase) {
+                showStatus('Authentication service is not initialized. Please refresh the page.', 'error');
+                return;
+            }
+            
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            // Basic form validation
+            if (!email || !password) {
+                showStatus('Please fill in all fields.', 'error');
+                return;
+            }
+            
+            // Show loading state
+            loginBtn.disabled = true;
+            showStatus('<div class="spinner"></div> Logging in...', 'info');
+            
+            // Call Supabase login
+            try {
+                console.log('Attempting login with:', { email }); // No password logging
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+                
+                console.log('Login response:', { data: data ? 'data received' : 'no data', error });
+                
+                if (error) throw error;
+                
+                showStatus('Login successful!', 'success');
+                
+                // Redirect to main page
+                setTimeout(() => {
+                    window.location.href = '/index.html';
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                showStatus(`Error: ${error.message || 'Invalid email or password'}`, 'error');
+                loginBtn.disabled = false;
+            }
+        });
+        
+        // Helper function to show status messages
+        function showStatus(message, type) {
+            statusDisplay.innerHTML = message;
+            statusDisplay.className = '';
+            statusDisplay.classList.add(type);
+            statusDisplay.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

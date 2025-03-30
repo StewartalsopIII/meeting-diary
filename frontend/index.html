@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meeting Diary App</title>
+    <link rel="icon" href="/favicon.ico">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -196,6 +197,34 @@
             background-color: #5a6268;
         }
         
+        /* User profile section */
+        .user-profile {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .user-email {
+            margin-right: 15px;
+            font-weight: bold;
+        }
+        
+        .logout-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background-color: #5a6268;
+        }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -203,6 +232,11 @@
     </style>
 </head>
 <body>
+    <div class="user-profile">
+        <span class="user-email" id="user-email"></span>
+        <button class="logout-btn" id="logout-btn">Log Out</button>
+    </div>
+    
     <h1>Meeting Diary</h1>
     
     <div id="api-status"></div>
@@ -254,7 +288,13 @@
         <div id="output-content"></div>
     </div>
     
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+        // Initialize Supabase client
+        let supabase;
+        let currentUser = null;
+        
+        // DOM Elements
         const uploadContainer = document.getElementById('upload-container');
         const fileInput = document.getElementById('file-input');
         const fileNameDisplay = document.getElementById('file-name');
@@ -265,16 +305,92 @@
         const outputContent = document.getElementById('output-content');
         const speakersList = document.getElementById('speakers-list');
         const addSpeakerBtn = document.getElementById('add-speaker-btn');
+        const userEmailDisplay = document.getElementById('user-email');
+        const logoutBtn = document.getElementById('logout-btn');
         
         let selectedFile = null;
         let apiKeyConfigured = false;
         let speakerCount = 1;
         
-        // Check if API key is configured
-        checkApiKeyConfig();
+        // Initialize
+        initializeApp();
         
-        // Set up speaker management
-        addSpeakerBtn.addEventListener('click', addSpeakerField);
+        async function initializeApp() {
+            // Get Supabase config
+            try {
+                const response = await fetch('/api/supabase-config');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load Supabase configuration');
+                }
+                
+                const config = await response.json();
+                
+                if (!config.url || !config.anon_key) {
+                    throw new Error('Incomplete Supabase configuration');
+                }
+                
+                console.log('Initializing Supabase with config:', { 
+                    url: config.url,
+                    key: config.anon_key ? 'Key loaded' : 'Missing key'
+                });
+                
+                // Initialize Supabase with the fetched configuration
+                supabase = window.supabase.createClient(config.url, config.anon_key);
+                
+                // Check authentication status
+                const { data, error } = await supabase.auth.getUser();
+                
+                console.log('Auth status:', { 
+                    user: data?.user ? 'Authenticated' : 'Not authenticated', 
+                    error: error ? error.message : null
+                });
+                
+                if (error || !data.user) {
+                    // Not authenticated, redirect to login
+                    console.log('Not authenticated, redirecting to login');
+                    window.location.href = '/';
+                    return;
+                }
+                
+                currentUser = data.user;
+                
+                // Display user info
+                userEmailDisplay.textContent = data.user.email;
+                
+                // Set up logout
+                logoutBtn.addEventListener('click', handleLogout);
+                
+                // Check API config
+                await checkApiKeyConfig();
+                
+                // Set up speaker management
+                addSpeakerBtn.addEventListener('click', addSpeakerField);
+                
+                // Set up auth state change listener
+                supabase.auth.onAuthStateChange((event, session) => {
+                    console.log('Auth state change:', event);
+                    if (event === 'SIGNED_OUT') {
+                        window.location.href = '/';
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error initializing app:', error);
+                showStatus('Error initializing application. Please try refreshing the page or check console for details.', 'error');
+            }
+        }
+        
+        async function handleLogout() {
+            try {
+                const { error } = await supabase.auth.signOut();
+                if (error) throw error;
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Error signing out:', error);
+                showStatus(`Error signing out: ${error.message}`, 'error');
+            }
+        }
         
         function addSpeakerField() {
             speakerCount++;
@@ -312,25 +428,46 @@
             return speakerNames;
         }
         
-        function checkApiKeyConfig() {
-            fetch('/api/check-config')
-                .then(response => response.json())
-                .then(data => {
-                    apiKeyConfigured = data.configured;
-                    if (apiKeyConfigured) {
-                        apiStatus.innerHTML = "AssemblyAI API key is configured";
-                        apiStatus.className = "api-configured";
-                    } else {
-                        apiStatus.innerHTML = "Warning: AssemblyAI API key is not configured. Please add it to your .env file.";
-                        apiStatus.className = "api-not-configured";
+        async function checkApiKeyConfig() {
+            try {
+                // Get the session
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                
+                if (sessionError) throw sessionError;
+                
+                // Use the session token for the request
+                const response = await fetch('/api/check-config', {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
                     }
-                    updateProcessButton();
-                })
-                .catch(error => {
-                    console.error('Error checking API configuration:', error);
-                    apiStatus.innerHTML = "Error checking API configuration";
-                    apiStatus.className = "api-not-configured";
                 });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        // Authentication error, redirect to login
+                        window.location.href = '/';
+                        return;
+                    }
+                    throw new Error('Failed to check API configuration');
+                }
+                
+                const data = await response.json();
+                apiKeyConfigured = data.configured;
+                
+                if (apiKeyConfigured) {
+                    apiStatus.innerHTML = "AssemblyAI API key is configured";
+                    apiStatus.className = "api-configured";
+                } else {
+                    apiStatus.innerHTML = "Warning: AssemblyAI API key is not configured. Please add it to your .env file.";
+                    apiStatus.className = "api-not-configured";
+                }
+                
+                updateProcessButton();
+            } catch (error) {
+                console.error('Error checking API configuration:', error);
+                apiStatus.innerHTML = "Error checking API configuration";
+                apiStatus.className = "api-not-configured";
+            }
         }
         
         // Drag and drop functionality
@@ -388,7 +525,7 @@
         
         processBtn.addEventListener('click', processFile);
         
-        function processFile() {
+        async function processFile() {
             if (!selectedFile) {
                 showStatus('Please select a file.', 'error');
                 return;
@@ -396,6 +533,14 @@
             
             if (!apiKeyConfigured) {
                 showStatus('API key is not configured. Please add it to your .env file.', 'error');
+                return;
+            }
+            
+            // Get the session token for authentication
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError) {
+                showStatus(`Authentication error: ${sessionError.message}`, 'error');
                 return;
             }
             
@@ -416,13 +561,22 @@
             showStatus('<div class="spinner"></div> Processing your file. This may take a while...', 'info');
             processBtn.disabled = true;
             
-            // Send the file to the server endpoint
+            // Send the file to the server endpoint with authentication
             fetch('/api/transcribe', {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`
+                },
                 body: formData
             })
             .then(response => {
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        // Authentication error, redirect to login
+                        window.location.href = '/';
+                        throw new Error('Authentication required. Please log in again.');
+                    }
+                    
                     return response.text().then(text => {
                         throw new Error(text || 'An error occurred during processing');
                     });
