@@ -113,11 +113,17 @@
             cursor: not-allowed;
         }
         
-        #status {
+        #status-container {
             margin-top: 20px;
             padding: 15px;
             border-radius: 4px;
+            display: flex;
+            align-items: center;
             display: none;
+        }
+        
+        #status {
+            flex: 1;
         }
         
         .success {
@@ -145,6 +151,23 @@
         #output-content {
             white-space: pre-wrap;
             font-family: monospace;
+        }
+        
+        #download-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+            display: none;
+        }
+        
+        #download-btn:hover {
+            background-color: #218838;
         }
         
         .spinner {
@@ -281,7 +304,10 @@
     
     <button id="process-btn" disabled>Process File</button>
     
-    <div id="status"></div>
+    <div id="status-container">
+        <span id="status"></span>
+        <button id="download-btn">Download Transcript</button>
+    </div>
     
     <div id="output-container">
         <h3>Output:</h3>
@@ -300,9 +326,11 @@
         const fileNameDisplay = document.getElementById('file-name');
         const apiStatus = document.getElementById('api-status');
         const processBtn = document.getElementById('process-btn');
+        const statusContainer = document.getElementById('status-container');
         const statusDisplay = document.getElementById('status');
         const outputContainer = document.getElementById('output-container');
         const outputContent = document.getElementById('output-content');
+        const downloadBtn = document.getElementById('download-btn');
         const speakersList = document.getElementById('speakers-list');
         const addSpeakerBtn = document.getElementById('add-speaker-btn');
         const userEmailDisplay = document.getElementById('user-email');
@@ -599,12 +627,81 @@
             statusDisplay.innerHTML = message;
             statusDisplay.className = '';
             statusDisplay.classList.add(type);
-            statusDisplay.style.display = 'block';
+            statusContainer.className = '';
+            statusContainer.classList.add(type);
+            statusContainer.style.display = 'flex';
+            
+            // Only show download button when transcription is successful
+            if (type === 'success' && message.includes('processed successfully')) {
+                downloadBtn.style.display = 'inline-block';
+            } else {
+                downloadBtn.style.display = 'none';
+            }
         }
         
         function displayOutput(content) {
             outputContent.textContent = content;
             outputContainer.style.display = 'block';
+        }
+        
+        // Handle transcript downloads
+        downloadBtn.addEventListener('click', downloadTranscript);
+        
+        function downloadTranscript() {
+            const content = outputContent.textContent;
+            if (!content) {
+                showStatus('No transcript content to download.', 'error');
+                return;
+            }
+            
+            // Get the selected format
+            const format = document.querySelector('input[name="format"]:checked').value;
+            
+            // Create file extension based on format
+            const fileExtension = format;
+            
+            // Create filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+            const filename = selectedFile 
+                ? `transcript_${selectedFile.name.split('.')[0]}_${timestamp}.${fileExtension}`
+                : `transcript_${timestamp}.${fileExtension}`;
+            
+            // Create a blob with the content
+            const blob = new Blob([content], { type: getMimeType(fileExtension) });
+            
+            // Create a temporary URL for the blob
+            const url = URL.createObjectURL(blob);
+            
+            // Create a temporary anchor element to trigger the download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+            
+            const currentMessage = statusDisplay.innerHTML;
+            showStatus(currentMessage + ' Transcript downloaded successfully!', 'success');
+        }
+        
+        // Helper function to get MIME type based on file extension
+        function getMimeType(extension) {
+            switch(extension) {
+                case 'json':
+                    return 'application/json';
+                case 'srt':
+                    return 'text/plain';
+                case 'md':
+                    return 'text/markdown';
+                case 'txt':
+                default:
+                    return 'text/plain';
+            }
         }
     </script>
 </body>
