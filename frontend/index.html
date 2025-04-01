@@ -612,22 +612,40 @@
                         throw new Error('Authentication required. Please log in again.');
                     }
                     
-                    return response.json().then(data => {
-                        throw new Error(data.error || 'An error occurred during processing');
-                    }).catch(e => {
-                        // Fall back to text if not json
-                        return response.text().then(text => {
+                    // Try to get error as JSON first, fall back to text
+                    return response.text().then(text => {
+                        try {
+                            // Try to parse as JSON
+                            const data = JSON.parse(text);
+                            throw new Error(data.error || 'An error occurred during processing');
+                        } catch (e) {
+                            // If not valid JSON, use as plain text error
                             throw new Error(text || 'An error occurred during processing');
-                        });
+                        }
                     });
                 }
-                return response.json();
+                
+                // Always try to parse as JSON first, fall back to text if that fails
+                return response.text().then(text => {
+                    try {
+                        // Try to parse as JSON
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.log('Response is not JSON, handling as text');
+                        // If parsing fails, treat it as plain text content
+                        return {
+                            content: text,
+                            success: true,
+                            format: document.querySelector('input[name="format"]:checked').value
+                        };
+                    }
+                });
             })
             .then(data => {
                 // Show success message
                 showStatus('File processed successfully!', 'success');
                 
-                // If we have transcript content, display it
+                // Display the content (whether it came as part of JSON or as plain text)
                 if (data.content) {
                     displayOutput(data.content);
                     

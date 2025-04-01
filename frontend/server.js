@@ -34,6 +34,56 @@ const upload = multer({ storage });
 app.use(express.json());
 app.use(cookieParser());
 
+// Middleware to ensure proper content-type and error handling
+app.use((req, res, next) => {
+    // Override json method to always set content-type
+    const originalJson = res.json;
+    res.json = function(obj) {
+        res.set('Content-Type', 'application/json');
+        return originalJson.call(this, obj);
+    };
+    
+    // Override send method to detect JSON strings and set content-type
+    const originalSend = res.send;
+    res.send = function(body) {
+        if (typeof body === 'string' && body.startsWith('{') && body.endsWith('}')) {
+            try {
+                JSON.parse(body); // Check if it's valid JSON
+                res.set('Content-Type', 'application/json');
+            } catch (e) {
+                // Not JSON, use default behavior
+            }
+        }
+        return originalSend.call(this, body);
+    };
+    
+    // Add a standardized error response method
+    res.errorJson = function(message, statusCode = 500) {
+        res.status(statusCode);
+        res.set('Content-Type', 'application/json');
+        return res.send(JSON.stringify({
+            error: message,
+            success: false
+        }));
+    };
+    
+    // Add a standardized success response method
+    res.successJson = function(data) {
+        res.set('Content-Type', 'application/json');
+        if (typeof data === 'object') {
+            data.success = true;
+            return res.json(data);
+        } else {
+            return res.json({
+                success: true,
+                data: data
+            });
+        }
+    };
+    
+    next();
+});
+
 // Authentication middleware
 const requireAuth = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -293,16 +343,16 @@ const createDualRoute = (method, path, handler) => {
 };
 
 // 1. Transcribe and store audio/video files
-// Keep backward compatibility with original /api/transcribe endpoint
-app.post('/api/transcribe', requireAuth, upload.single('file'), (req, res) => {
+// Define handler with robust error handling
+const transcribeHandler = (req, res) => {
     if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+        return res.errorJson('No file uploaded', 400);
     }
     
     // Get API key from .env file
     const apiKey = process.env.ASSEMBLYAI_API_KEY;
     if (!apiKey) {
-        return res.status(400).json({ error: 'API key is not configured. Please add it to your .env file.' });
+        return res.errorJson('API key is not configured. Please add it to your .env file.', 400);
     }
     
     const format = req.body.format || 'md';
