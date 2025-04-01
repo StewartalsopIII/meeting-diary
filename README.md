@@ -161,6 +161,55 @@ You'll need an AssemblyAI API key to use this tool. You can:
 2. Pass it via the command line: `--api-key your-key`
 3. Let the tool prompt you for it (it can be saved for future use)
 
+## Web Interface & Transcript Storage
+
+Meeting Diary includes a web interface for transcribing audio/video files and storing transcripts. Features include:
+
+- 🔒 User authentication via Supabase
+- 💾 Secure transcript storage with row-level security
+- 📝 List, search, and manage your transcripts
+- 🔍 Support for future semantic search via embeddings
+
+### Setup with Existing Supabase Project
+
+Follow these steps to add transcript storage to your existing Supabase project:
+
+1. Clone the repository and install dependencies:
+```bash
+git clone https://github.com/southbridgeai/meeting-diary.git
+cd meeting-diary
+npm install  # or bun install
+```
+
+2. Create `.env` file in the frontend directory:
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+3. Edit `.env` to add your AssemblyAI API key and existing Supabase credentials:
+```
+ASSEMBLYAI_API_KEY=your_assemblyai_key
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_KEY=your_supabase_service_role_key
+```
+
+4. Set up the database schema in Supabase:
+   - Log in to your Supabase dashboard
+   - Go to the SQL Editor and create a new query
+   - Copy the contents of `frontend/supabase-schema.sql`
+   - Run the SQL to create the transcripts table with RLS policies
+
+5. Start the server:
+```bash
+cd frontend
+node server.js
+```
+
+6. Access the application at http://localhost:3000
+
+See [frontend/README.md](frontend/README.md) for more detailed setup instructions and [TRANSCRIPT_STORAGE.md](frontend/TRANSCRIPT_STORAGE.md) for details on using the transcript storage API.
+
 ## Development
 
 ```bash

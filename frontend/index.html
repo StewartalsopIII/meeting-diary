@@ -255,12 +255,19 @@
     </style>
 </head>
 <body>
-    <div class="user-profile">
-        <span class="user-email" id="user-email"></span>
-        <button class="logout-btn" id="logout-btn">Log Out</button>
-    </div>
+    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
+        <h1 style="margin: 0;">Meeting Diary</h1>
+        <div class="user-profile">
+            <span class="user-email" id="user-email"></span>
+            <button class="logout-btn" id="logout-btn">Log Out</button>
+        </div>
+    </header>
     
-    <h1>Meeting Diary</h1>
+    <!-- Tab Navigation -->
+    <div style="margin-bottom: 20px;">
+        <a href="/index.html" style="text-decoration: none; font-weight: bold; color: #007bff; padding-bottom: 5px; border-bottom: 2px solid #007bff; margin-right: 20px;">New Transcript</a>
+        <a href="/transcripts.html" style="text-decoration: none; color: #6c757d; padding-bottom: 5px; border-bottom: 2px solid transparent;">My Transcripts</a>
+    </div>
     
     <div id="api-status"></div>
     
@@ -605,15 +612,37 @@
                         throw new Error('Authentication required. Please log in again.');
                     }
                     
-                    return response.text().then(text => {
-                        throw new Error(text || 'An error occurred during processing');
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'An error occurred during processing');
+                    }).catch(e => {
+                        // Fall back to text if not json
+                        return response.text().then(text => {
+                            throw new Error(text || 'An error occurred during processing');
+                        });
                     });
                 }
-                return response.text();
+                return response.json();
             })
             .then(data => {
+                // Show success message
                 showStatus('File processed successfully!', 'success');
-                displayOutput(data);
+                
+                // If we have transcript content, display it
+                if (data.content) {
+                    displayOutput(data.content);
+                    
+                    // Show a message with link to transcripts page
+                    const viewTranscriptsMessage = document.createElement('div');
+                    viewTranscriptsMessage.style.marginTop = '20px';
+                    viewTranscriptsMessage.style.textAlign = 'center';
+                    viewTranscriptsMessage.innerHTML = `
+                        <p>Transcript saved to your account. <a href="/transcripts.html">View all transcripts</a></p>
+                    `;
+                    outputContainer.appendChild(viewTranscriptsMessage);
+                } else {
+                    // If no content was returned, show a message
+                    showStatus('Transcript processed and saved. View it in My Transcripts.', 'success');
+                }
             })
             .catch(error => {
                 showStatus(`Error: ${error.message}`, 'error');
