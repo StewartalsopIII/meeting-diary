@@ -100,7 +100,34 @@ For detailed API documentation, see [TRANSCRIPT_STORAGE.md](TRANSCRIPT_STORAGE.m
 
 ## Troubleshooting
 
-If you encounter issues with the transcripts table:
+If you encounter issues with the transcripts table, try the following diagnostic scripts:
+
+### 1. Check Supabase Connection
+
+Run this script to check if your Supabase connection is working and if the transcripts table is set up correctly:
+
+```bash
+cd frontend
+node check-supabase.js
+```
+
+### 2. Test Database Insertion
+
+Run this script to test if you can insert records into the transcripts table:
+
+```bash
+cd frontend
+node test-insert.js
+```
+
+### 3. Common Issues
+
+- **"Unexpected token '#', "# Meeting "... is not valid JSON"**: The server is returning a non-JSON response. Make sure the server.js file has the middleware to set content-type.
+- **"Cannot read properties of undefined (reading 'auth')"**: Supabase client isn't initialized properly. Check your Supabase URL and keys in the .env file.
+- **"relation 'transcripts' does not exist"**: The transcripts table hasn't been created. Run the SQL from supabase-schema.sql.
+- **"violates row-level security policy"**: Authentication is working, but RLS is blocking access. Make sure you're signed in and RLS policies are set up correctly.
+
+### 4. Manual Checks
 
 1. Check Supabase console logs for any SQL errors
 2. Make sure Row Level Security is enabled on the transcripts table

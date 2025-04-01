@@ -342,18 +342,47 @@ const createDualRoute = (method, path, handler) => {
     console.log(`Created dual routes: /api${path} and ${API_BASE}${path}`);
 };
 
-// 1. Transcribe and store audio/video files
-// Define handler with robust error handling
-const transcribeHandler = (req, res) => {
+// 1. Transcribe and store audio/video files with extensive debugging
+// Define handler with robust error handling and comprehensive logging
+const transcribeHandler = async (req, res) => {
+    console.log('Transcript creation request received');
+    
+    // Validate Supabase setup first
+    try {
+        const { data: tableCheck, error: tableError } = await supabase
+            .from('transcripts')
+            .select('id')
+            .limit(1);
+            
+        if (tableError) {
+            if (tableError.message.includes('relation "transcripts" does not exist')) {
+                console.error('ERROR: Transcripts table does not exist in Supabase');
+                return res.errorJson('Transcripts table does not exist in the database. Please run the SQL setup script from supabase-schema.sql.', 500);
+            } else {
+                console.error('ERROR checking transcripts table:', tableError);
+                return res.errorJson(`Database error: ${tableError.message}`, 500);
+            }
+        }
+        
+        console.log('Transcripts table exists, proceeding with request');
+    } catch (dbError) {
+        console.error('ERROR with Supabase connection:', dbError);
+        return res.errorJson(`Supabase connection error: ${dbError.message}`, 500);
+    }
+    
     if (!req.file) {
+        console.error('ERROR: No file uploaded');
         return res.errorJson('No file uploaded', 400);
     }
     
     // Get API key from .env file
     const apiKey = process.env.ASSEMBLYAI_API_KEY;
     if (!apiKey) {
+        console.error('ERROR: AssemblyAI API key not configured');
         return res.errorJson('API key is not configured. Please add it to your .env file.', 400);
     }
+    
+    console.log('Proceeding with file processing');
     
     const format = req.body.format || 'md';
     const filePath = req.file.path;

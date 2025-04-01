@@ -6,10 +6,99 @@
  */
 
 // Initialize transcript management when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    // Only initialize if we're on the transcripts page and user is authenticated
-    if (document.getElementById('transcripts-list') && window.supabase) {
-        initTranscriptManagement();
+document.addEventListener('DOMContentLoaded', async () => {
+    // Only initialize if we're on the transcripts page
+    if (document.getElementById('transcripts-list')) {
+        try {
+            // First ensure the supabase global variable is defined
+            if (typeof window.supabase === 'undefined' && typeof supabase === 'undefined') {
+                console.log('No Supabase client detected, checking if library is loaded...');
+                
+                // Check if the Supabase library is available
+                if (typeof supabase === 'undefined' && typeof window.supabase === 'undefined') {
+                    throw new Error('Supabase client library is not loaded. Please check your network connection or script inclusion.');
+                }
+            }
+            
+            // Make sure Supabase is initialized before proceeding
+            if (!window.supabase) {
+                console.log('Fetching Supabase configuration...');
+                // Get Supabase config and initialize client
+                const response = await fetch('/api/supabase-config');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load Supabase configuration');
+                }
+                
+                const config = await response.json();
+                
+                if (!config.url || !config.anon_key) {
+                    throw new Error('Incomplete Supabase configuration');
+                }
+                
+                console.log('Initializing Supabase client for transcript management...');
+                
+                // Check which method to use for initialization
+                if (typeof window.supabase === 'object' && window.supabase?.createClient) {
+                    // Use window.supabase.createClient method
+                    console.log('Using window.supabase.createClient method');
+                    window.supabase = window.supabase.createClient(config.url, config.anon_key);
+                } else if (typeof supabase === 'object' && supabase?.createClient) {
+                    // Use global supabase.createClient method
+                    console.log('Using global supabase.createClient method');
+                    window.supabase = supabase.createClient(config.url, config.anon_key);
+                } else {
+                    throw new Error('Could not find Supabase createClient method');
+                }
+                
+                console.log('Supabase client initialized successfully!');
+            } else {
+                console.log('Supabase client already initialized');
+            }
+            
+            // Ensure window.supabase is accessible
+            if (!window.supabase) {
+                throw new Error('Failed to initialize Supabase client');
+            }
+            
+            // Verify that auth is available by checking the object
+            if (!window.supabase.auth) {
+                throw new Error('Supabase auth is not available. Client may be incorrectly initialized.');
+            }
+            
+            // Make sure we have a global variable reference
+            supabase = window.supabase;
+            
+            // Verify we can access auth methods
+            await window.supabase.auth.getSession();
+            console.log('Supabase authentication verified successfully');
+            
+            // Now that Supabase is initialized and verified, proceed with transcript management
+            console.log('Proceeding with transcript management initialization');
+            initTranscriptManagement();
+            
+        } catch (error) {
+            console.error('Error initializing Supabase:', error);
+            const errorEl = document.getElementById('transcripts-error');
+            if (errorEl) {
+                errorEl.textContent = `Error: Failed to initialize Supabase: ${error.message}`;
+                errorEl.style.display = 'block';
+                
+                // Show more detailed troubleshooting information
+                errorEl.innerHTML += `<br><br>Troubleshooting tips:<br>
+                    1. Make sure you've set up your Supabase project correctly.<br>
+                    2. Check your .env file has SUPABASE_URL and SUPABASE_ANON_KEY.<br>
+                    3. Run the check-supabase.js diagnostic tool.<br>
+                    4. Verify the Supabase client library is loading correctly.`;
+            }
+            
+            // Hide loading indicator if present
+            const loadingEl = document.getElementById('transcripts-loading');
+            if (loadingEl) {
+                loadingEl.style.display = 'none';
+            }
+            return;
+        }
     }
 });
 

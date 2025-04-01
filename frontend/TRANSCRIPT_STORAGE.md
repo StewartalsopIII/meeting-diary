@@ -1,235 +1,163 @@
 # Transcript Storage with Supabase
 
-This document explains how to set up and use the Supabase transcript storage functionality in Meeting Diary.
+This document provides information on how Meeting Diary stores and manages transcripts using Supabase.
 
 ## Overview
 
-Meeting Diary now stores all processed transcripts in a Supabase database, with the following features:
+Meeting Diary stores all transcripts in a Supabase PostgreSQL database, with the following features:
 
-- **Secure storage**: All transcripts are protected with Row Level Security (RLS) so users can only access their own transcripts
-- **Metadata extraction**: Speaker information, duration, and other metadata are automatically extracted and stored
-- **Text chunking**: Transcripts are automatically chunked to support future semantic search capabilities
-- **Full CRUD operations**: Complete API for creating, reading, updating, and deleting transcripts
-- **Pagination and search**: List transcripts with pagination and search functionality
-- **API versioning**: Versioned API endpoints (`/api/v1/...`) for better backward compatibility
+- Secure storage with Row Level Security (RLS) to ensure users can only access their own transcripts
+- Full CRUD operations (Create, Read, Update, Delete)
+- Support for different transcript formats (Markdown, JSON, TXT, SRT)
+- Metadata storage including speaker information, duration, etc.
+- Preparation for future vector search capabilities
 
-## Database Setup
+## Setup Requirements
 
-To set up the transcript storage in Supabase:
+1. A Supabase project with authentication enabled
+2. The transcripts table and associated functions created in your Supabase database
+3. Environment variables properly configured
+
+## Environment Variables
+
+The following environment variables must be set in your `.env` file:
+
+```
+SUPABASE_URL=your-supabase-url
+SUPABASE_SERVICE_KEY=your-supabase-service-role-key
+SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+## Database Schema
+
+The system uses a `transcripts` table with the following structure:
+
+```sql
+CREATE TABLE IF NOT EXISTS public.transcripts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    format TEXT NOT NULL CHECK (format IN ('md', 'txt', 'json', 'srt')),
+    file_name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    embedding VECTOR(1536), -- For future OpenAI embeddings
+    chunks JSONB DEFAULT '[]'::JSONB, -- Store chunks of text for retrieval
+    metadata JSONB DEFAULT '{}'::JSONB -- Store additional metadata
+);
+```
+
+## Setting Up the Database
+
+To set up the database tables and security policies:
 
 1. Log in to your Supabase dashboard
 2. Go to the SQL Editor
-3. Create a New Query
-4. Copy and paste the SQL from `supabase-schema.sql`
-5. Run the query to create the necessary tables and policies
+3. Create a new query
+4. Copy and paste the contents of `supabase-schema.sql`
+5. Run the query
 
 ## API Endpoints
 
-The following API endpoints are available for working with transcripts. All endpoints are available in both legacy and versioned formats.
+The application provides the following API endpoints for transcript management:
 
-### API Versioning
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/transcribe` | POST | Transcribe and store audio/video files |
+| `/api/v1/transcripts` | GET | Get all transcripts for the authenticated user |
+| `/api/v1/transcripts/:id` | GET | Get a specific transcript by ID |
+| `/api/v1/transcripts/:id` | PUT | Update a specific transcript |
+| `/api/v1/transcripts/:id` | DELETE | Delete a specific transcript |
 
-All endpoints are available with the following prefixes:
-- Legacy format: `/api/...` (for backward compatibility)
-- Versioned format: `/api/v1/...` (recommended for new integrations)
+All endpoints require authentication and respect Row Level Security policies.
 
-For example, to list transcripts, you can use either:
-- `/api/transcripts` (legacy)
-- `/api/v1/transcripts` (versioned)
+## Troubleshooting
 
-The versioned API ensures backward compatibility as new features are added in future versions.
+### Diagnostic Tools
 
-### 1. Create a transcript
+We've included diagnostic tools to help you troubleshoot issues with Supabase integration:
 
-**Endpoints:** 
-- `POST /api/transcribe` (legacy)
-- `POST /api/v1/transcribe` (versioned)
+#### 1. `check-supabase.js`
 
-This endpoint uploads an audio/video file, processes it with AssemblyAI, and stores the transcript in Supabase.
+This script verifies that your Supabase setup is correct:
 
-**Request:**
-- Method: POST
-- Authentication: Required
-- Content-Type: multipart/form-data
-- Body:
-  - `file`: The audio/video file to transcribe (required)
-  - `format`: Output format (md, txt, json, srt), defaults to 'md'
-  - `speakers`: JSON array of speaker names (optional)
-  - `title`: Custom title for the transcript (optional)
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "title": "Transcript Title",
-  "content": "Transcript content...",
-  "format": "md",
-  "created_at": "2025-03-20T15:30:00.000Z"
-}
+```bash
+node check-supabase.js
 ```
 
-### 2. List transcripts
+It checks:
+- Environment variables
+- Database connection
+- Table existence
+- Row Level Security configuration
 
-**Endpoints:**
-- `GET /api/transcripts` (legacy)
-- `GET /api/v1/transcripts` (versioned)
+#### 2. `test-insert.js`
 
-Retrieves a paginated list of the user's transcripts.
+This script tests if transcript insertion is working correctly:
 
-**Request:**
-- Method: GET
-- Authentication: Required
-- Query Parameters:
-  - `page`: Page number (default: 1)
-  - `limit`: Items per page (default: 10)
-  - `order_by`: Field to sort by (created_at, updated_at, title) (default: updated_at)
-  - `order_direction`: Sort direction (asc, desc) (default: desc)
-  - `search`: Search term to filter results (optional)
-
-**Response:**
-```json
-{
-  "transcripts": [
-    {
-      "id": "uuid",
-      "title": "Transcript Title",
-      "format": "md",
-      "file_name": "original.mp4",
-      "created_at": "2025-03-20T15:30:00.000Z",
-      "updated_at": "2025-03-20T15:30:00.000Z",
-      "metadata": {
-        "speakers": ["Speaker 1", "Speaker 2"],
-        "duration": 300000,
-        "processedAt": "2025-03-20T15:30:00.000Z"
-      }
-    }
-  ],
-  "pagination": {
-    "total": 25,
-    "page": 1,
-    "limit": 10,
-    "pages": 3
-  }
-}
+```bash
+node test-insert.js
 ```
 
-### 3. Get a specific transcript
+It attempts to:
+- Connect to Supabase
+- Find a valid user ID
+- Insert a test transcript
+- Verify the transcript was inserted correctly
+- Delete the test transcript
 
-**Endpoints:**
-- `GET /api/transcripts/:id` (legacy)
-- `GET /api/v1/transcripts/:id` (versioned)
+### Common Issues and Solutions
 
-Retrieves a specific transcript by ID.
+#### "Cannot read properties of undefined (reading 'auth')"
 
-**Request:**
-- Method: GET
-- Authentication: Required
-- Path Parameters:
-  - `id`: UUID of the transcript
+This error occurs when the Supabase client isn't properly initialized before attempting to use its auth methods.
 
-**Response:**
-```json
-{
-  "id": "uuid",
-  "user_id": "user-uuid",
-  "title": "Transcript Title",
-  "content": "Transcript content...",
-  "format": "md",
-  "file_name": "original.mp4",
-  "created_at": "2025-03-20T15:30:00.000Z",
-  "updated_at": "2025-03-20T15:30:00.000Z",
-  "metadata": {
-    "speakers": ["Speaker 1", "Speaker 2"],
-    "duration": 300000,
-    "processedAt": "2025-03-20T15:30:00.000Z"
-  },
-  "chunks": [
-    {
-      "text": "Chunk of text...",
-      "position": 0
-    }
-  ]
-}
-```
+**Solution**:
+1. Ensure the Supabase script is loaded with: `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>`
+2. Check that your browser can access the CDN
+3. Verify that your environment variables are set correctly
+4. Make sure the `/api/supabase-config` endpoint returns valid configuration
 
-### 4. Update a transcript
+#### "Error: relation 'transcripts' does not exist"
 
-**Endpoints:**
-- `PUT /api/transcripts/:id` (legacy)
-- `PUT /api/v1/transcripts/:id` (versioned)
+This error indicates that the transcripts table hasn't been created in your Supabase database.
 
-Updates a specific transcript by ID.
+**Solution**:
+1. Run the SQL from `supabase-schema.sql` in your Supabase SQL Editor
+2. Verify that the table was created by checking the Table Editor
 
-**Request:**
-- Method: PUT
-- Authentication: Required
-- Path Parameters:
-  - `id`: UUID of the transcript
-- Body:
-  - `title`: New title (optional)
-  - `content`: New content (optional)
-  - `metadata`: Updated metadata (optional)
+#### "Error: permission denied for table transcripts"
 
-**Response:**
-```json
-{
-  "id": "uuid",
-  "title": "Updated Title",
-  "content": "Updated content...",
-  "updated_at": "2025-03-20T16:30:00.000Z"
-}
-```
+This error suggests Row Level Security is preventing access to the table.
 
-### 5. Delete a transcript
+**Solution**:
+1. Check that RLS policies are configured correctly in `supabase-schema.sql`
+2. Verify that the user is properly authenticated
+3. Ensure you're using the correct Supabase key (anon key for client-side operations)
 
-**Endpoints:**
-- `DELETE /api/transcripts/:id` (legacy)
-- `DELETE /api/v1/transcripts/:id` (versioned)
+#### Browser Console Network Errors
 
-Deletes a specific transcript by ID.
+If you see network errors in your browser console:
 
-**Request:**
-- Method: DELETE
-- Authentication: Required
-- Path Parameters:
-  - `id`: UUID of the transcript
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Transcript deleted successfully"
-}
-```
-
-## Future Vectorization Support
-
-The database schema includes fields for future vector embedding support:
-
-- **embedding**: A vector column for storing embeddings (currently set to 1536 dimensions for OpenAI embeddings)
-- **chunks**: A JSONB column that stores text chunks for retrieval and embedding
-
-To enable vector search:
-
-1. Uncomment the vector extension creation line in `supabase-schema.sql`
-2. Uncomment the search function in `supabase-schema.sql`
-3. Implement a background job to generate embeddings for each chunk
-4. Create a new API endpoint for semantic search
+**Solution**:
+1. Check that your Supabase URL is correct and accessible
+2. Verify CORS is properly configured in your Supabase project
+3. Make sure you're not mixing HTTP and HTTPS
 
 ## Security Considerations
 
-- Row Level Security (RLS) policies ensure users can only access their own transcripts
-- API endpoints validate user authentication and permission to access resources
-- Input validation is performed on all endpoints
-- SQL injection prevention is implemented for search and sorting parameters
+The transcript storage system uses several security mechanisms:
 
-## Error Handling
+1. **Authentication**: All transcript operations require a valid Supabase session
+2. **Row Level Security**: Users can only access their own transcripts
+3. **Foreign Key Constraints**: Transcripts are linked to valid users
+4. **API Authorization**: All API endpoints verify the user's identity
 
-All API endpoints include comprehensive error handling with appropriate HTTP status codes:
+## Future Enhancements
 
-- `400 Bad Request`: Invalid input or missing required fields
-- `401 Unauthorized`: Authentication required
-- `404 Not Found`: Resource not found
-- `500 Internal Server Error`: Server-side errors
+The system is prepared for future enhancements including:
 
-Error responses include detailed error messages to help diagnose issues.
+1. **Vector Search**: The `embedding` column can store OpenAI embeddings for semantic search
+2. **Chunking**: The `chunks` column already stores text segments for more precise retrieval
+3. **Extended Metadata**: The `metadata` column can store additional information about transcripts

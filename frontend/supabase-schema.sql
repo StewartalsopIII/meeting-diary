@@ -96,9 +96,70 @@ END;
 $$;
 */
 
+-- Helper function to check if RLS is enabled on a table
+CREATE OR REPLACE FUNCTION check_table_rls(table_name text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  rls_enabled boolean;
+BEGIN
+  SELECT relrowsecurity INTO rls_enabled
+  FROM pg_class
+  WHERE oid = (table_name::regclass)::oid;
+  
+  RETURN rls_enabled;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN false;
+END;
+$$;
+
+-- Function to get user count (safer than direct table access)
+CREATE OR REPLACE FUNCTION get_user_count()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  user_count integer;
+BEGIN
+  SELECT count(*) INTO user_count FROM auth.users;
+  RETURN jsonb_build_object('count', user_count);
+END;
+$$;
+
+-- Function to get first user id (safer than direct table access)
+CREATE OR REPLACE FUNCTION get_first_user()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  first_user_id uuid;
+BEGIN
+  SELECT id INTO first_user_id FROM auth.users LIMIT 1;
+  RETURN jsonb_build_object('id', first_user_id);
+END;
+$$;
+
+-- Function to create both functions above
+CREATE OR REPLACE FUNCTION create_diagnostics_functions()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Function bodies defined in other functions
+  RETURN;
+END;
+$$;
+
 -- Comments:
 -- 1. The table includes embedding field for future vector similarity search
 -- 2. We use RLS policies to ensure users can only access their own transcripts
 -- 3. Indexes are created for efficient querying
 -- 4. A trigger is set up to automatically update the updated_at timestamp
 -- 5. A commented-out function demonstrates how vector search could be implemented
+-- 6. A helper function is provided to check if RLS is enabled on the table

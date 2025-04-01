@@ -473,29 +473,107 @@
         // Check authentication status
         async function checkAuth() {
             try {
-                // Get Supabase configuration
-                const response = await fetch('/api/supabase-config');
-                const config = await response.json();
-                
-                if (!config.url || !config.anon_key) {
-                    showError('Supabase configuration is incomplete. Please check your server settings.');
-                    return;
+                console.log('Starting authentication check...');
+                // Hide any previous errors
+                const errorEl = document.getElementById('transcripts-error');
+                if (errorEl) {
+                    errorEl.style.display = 'none';
                 }
                 
-                // Initialize Supabase with the fetched configuration
-                supabase = window.supabase.createClient(config.url, config.anon_key);
+                // First check if Supabase library is available
+                if (typeof window.supabase === 'undefined' && typeof supabase === 'undefined') {
+                    console.log('Checking if Supabase library is loaded...');
+                    const supabaseScript = document.querySelector('script[src*="supabase-js"]');
+                    if (!supabaseScript) {
+                        throw new Error('Supabase client library is not loaded. The script tag may be missing or blocked.');
+                    }
+                    throw new Error('Supabase client library is loaded but not initialized correctly.');
+                }
+                
+                // If supabase client isn't initialized yet, initialize it
+                if (!window.supabase || !window.supabase.auth) {
+                    console.log('Supabase client needs initialization');
+                    
+                    // Get Supabase configuration
+                    console.log('Fetching Supabase configuration...');
+                    const response = await fetch('/api/supabase-config');
+                    if (!response.ok) {
+                        throw new Error(`Failed to load Supabase configuration. Server returned: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const config = await response.json();
+                    
+                    if (!config.url || !config.anon_key) {
+                        throw new Error('Supabase configuration is incomplete. Server returned invalid configuration.');
+                    }
+                    
+                    console.log('Initializing Supabase client...');
+                    
+                    // Determine the correct way to initialize the client
+                    if (typeof window.supabase === 'object' && window.supabase?.createClient) {
+                        console.log('Using window.supabase.createClient method');
+                        window.supabase = window.supabase.createClient(config.url, config.anon_key);
+                    } else if (typeof supabase === 'object' && supabase?.createClient) {
+                        console.log('Using global supabase.createClient method');
+                        window.supabase = supabase.createClient(config.url, config.anon_key);
+                    } else {
+                        throw new Error('Could not find Supabase createClient method. The library may not be loaded correctly.');
+                    }
+                    
+                    // Ensure local variable has the same reference
+                    supabase = window.supabase;
+                    
+                    console.log('Supabase client initialized successfully');
+                } else {
+                    console.log('Supabase client already initialized');
+                    // Ensure local variable has the same reference as window.supabase
+                    supabase = window.supabase;
+                }
+                
+                // Verify auth is available
+                if (!window.supabase.auth) {
+                    throw new Error('Supabase auth is not available. The client may not be properly initialized.');
+                }
                 
                 // Check if user is logged in
+                console.log('Checking user authentication...');
                 const { data, error } = await supabase.auth.getUser();
                 
-                if (error || !data.user) {
+                if (error) {
+                    console.error('Auth error:', error);
+                    throw error;
+                }
+                
+                if (!data.user) {
+                    console.log('User is not authenticated, redirecting to login');
                     // Not authenticated, redirect to login
                     window.location.href = '/';
                     return;
                 }
                 
+                console.log('User authenticated successfully:', data.user.email);
                 // Display user info
                 document.getElementById('user-email').textContent = data.user.email;
+                
+                console.log('Authentication check complete');
+            } catch (error) {
+                console.error('Authentication error:', error);
+                
+                // Show error with troubleshooting tips
+                showError(`Authentication error: ${error.message}
+
+Troubleshooting Tips:
+1. Check if the Supabase client library is loaded correctly
+2. Verify your .env file has correct SUPABASE_URL and SUPABASE_ANON_KEY
+3. Run the check-supabase.js diagnostic tool
+4. Try logging in again on the main page`);
+                
+                // Redirect to login after a delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 5000);
+                return;
+            }
                 
                 // Set up logout
                 document.getElementById('logout-btn').addEventListener('click', async () => {
