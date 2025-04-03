@@ -624,11 +624,45 @@
                         throw new Error(text || 'An error occurred during processing');
                     });
                 }
-                return response.json(); // Changed from text() to json()
+                
+                // Try to parse as JSON first
+                return response.text().then(text => {
+                    try {
+                        // Check if response is JSON
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error("Error parsing JSON response:", e);
+                        console.log("Raw response:", text.substring(0, 500) + "...");
+                        // If not JSON, return as plain text in a compatible structure
+                        return {
+                            content: text,
+                            format: document.querySelector('input[name="format"]:checked').value,
+                            saved: false,
+                            error: "Response was not in JSON format"
+                        };
+                    }
+                });
             })
             .then(data => {
+                // Safety check for data structure
+                if (!data) {
+                    throw new Error("Empty response received");
+                }
+                
+                if (data.error && !data.content) {
+                    throw new Error(data.error);
+                }
+                
                 showStatus('File processed successfully! Transcript saved to your account.', 'success');
+                
+                // Check if content is available, log if not
+                if (!data.content) {
+                    console.error("No content in response:", data);
+                    throw new Error("No transcript content received");
+                }
+                
                 displayOutput(data.content);
+                
                 // Could also show a notification about the transcript being saved
                 if (data.saved) {
                     // Add a link to view all transcripts

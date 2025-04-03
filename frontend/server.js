@@ -191,15 +191,30 @@ app.post('/api/transcribe', requireAuth, upload.single('file'), (req, res) => {
                     // Continue despite database error, so user still gets their transcript
                 }
                 
-                // Return transcript data and ID to the client
-                res.json({
-                    id: insertData && insertData[0] ? insertData[0].id : null,
-                    title: title,
-                    content: data,
-                    format: format,
-                    file_name: req.file.originalname,
-                    saved: !insertError
-                });
+                // Log response format for debugging
+                console.log('Sending JSON response with content length:', data ? data.length : 0);
+                
+                // Ensure proper JSON response
+                try {
+                    // Return transcript data and ID to the client
+                    res.json({
+                        id: insertData && insertData[0] ? insertData[0].id : null,
+                        title: title,
+                        content: data,
+                        format: format,
+                        file_name: req.file.originalname,
+                        saved: !insertError
+                    });
+                } catch (jsonError) {
+                    console.error('Error sending JSON response:', jsonError);
+                    // Fallback to sending plain text if JSON fails
+                    res.type('application/json').send(JSON.stringify({
+                        content: data,
+                        format: format,
+                        saved: false,
+                        error: 'JSON formatting error'
+                    }));
+                }
                 
                 // Clean up the uploaded file after processing
                 fs.unlink(filePath, err => {
@@ -208,13 +223,28 @@ app.post('/api/transcribe', requireAuth, upload.single('file'), (req, res) => {
             } catch (dbError) {
                 console.error('Database error:', dbError);
                 // Return transcript anyway even if storage failed
-                res.json({
-                    content: data,
-                    format: format,
-                    file_name: req.file.originalname,
-                    saved: false,
-                    error: 'Failed to save to database'
-                });
+                console.log('Sending error JSON response with content length:', data ? data.length : 0);
+                
+                try {
+                    res.json({
+                        id: null,
+                        title: title,
+                        content: data,
+                        format: format,
+                        file_name: req.file.originalname,
+                        saved: false,
+                        error: 'Failed to save to database'
+                    });
+                } catch (jsonError) {
+                    console.error('Error sending JSON error response:', jsonError);
+                    // Fallback to sending plain text if JSON fails
+                    res.type('application/json').send(JSON.stringify({
+                        content: data,
+                        format: format,
+                        saved: false,
+                        error: 'Failed to save to database and JSON formatting error'
+                    }));
+                }
                 
                 // Clean up the uploaded file after processing
                 fs.unlink(filePath, err => {
