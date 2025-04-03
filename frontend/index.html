@@ -255,12 +255,20 @@
     </style>
 </head>
 <body>
-    <div class="user-profile">
-        <span class="user-email" id="user-email"></span>
-        <button class="logout-btn" id="logout-btn">Log Out</button>
-    </div>
+    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+        <h1 style="margin: 0; color: #333;">Meeting Diary</h1>
+        <nav>
+            <ul style="display: flex; list-style: none; margin: 0; padding: 0;">
+                <li style="margin-left: 20px;"><a href="/index.html" style="text-decoration: none; color: #007bff; font-weight: bold;">Transcribe</a></li>
+                <li style="margin-left: 20px;"><a href="/transcripts.html" style="text-decoration: none; color: #007bff; font-weight: bold;">My Transcripts</a></li>
+                <li style="margin-left: 20px;"><button class="logout-btn" id="logout-btn">Log Out</button></li>
+            </ul>
+        </nav>
+    </header>
     
-    <h1>Meeting Diary</h1>
+    <div style="margin-bottom: 20px;">
+        <span class="user-email" id="user-email"></span>
+    </div>
     
     <div id="api-status"></div>
     
@@ -271,6 +279,11 @@
         <div id="file-name"></div>
     </div>
     
+    <div id="title-container" style="margin: 20px 0;">
+        <label for="transcript-title" style="font-weight: bold; display: block; margin-bottom: 10px;">Transcript Title:</label>
+        <input type="text" id="transcript-title" placeholder="Enter a title for your transcript" style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
+    </div>
+
     <div id="format-container">
         <label>Output Format:</label>
         <div>
@@ -574,11 +587,13 @@
             
             const format = document.querySelector('input[name="format"]:checked').value;
             const speakerNames = getSpeakerNames();
+            const title = document.getElementById('transcript-title').value.trim() || selectedFile.name.split('.')[0];
             
             // Create a FormData object to handle the file
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('format', format);
+            formData.append('title', title);
             
             // Add speaker names if any are provided
             if (speakerNames.length > 0) {
@@ -609,11 +624,16 @@
                         throw new Error(text || 'An error occurred during processing');
                     });
                 }
-                return response.text();
+                return response.json(); // Changed from text() to json()
             })
             .then(data => {
-                showStatus('File processed successfully!', 'success');
-                displayOutput(data);
+                showStatus('File processed successfully! Transcript saved to your account.', 'success');
+                displayOutput(data.content);
+                // Could also show a notification about the transcript being saved
+                if (data.saved) {
+                    // Add a link to view all transcripts
+                    statusDisplay.innerHTML += ' <a href="/transcripts.html" style="color: inherit; text-decoration: underline;">View all transcripts</a>';
+                }
             })
             .catch(error => {
                 showStatus(`Error: ${error.message}`, 'error');
