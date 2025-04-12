@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  meeting-diary:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: meeting-diary
+    restart: unless-stopped
+    ports:
+      - "3002:3000"  # Map container port 3000 to host port 3002
+    volumes:
+      # Mount for persistent transcript storage
+      - meeting_diary_data:/app/frontend/outputs
+      # Mount for environment variables
+      - ./.env:/app/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000  # Keep container internal port as 3000
+      # Uncomment and set these in production or use the .env file
+      # - ASSEMBLYAI_API_KEY=your_key_here
+      # - SUPABASE_URL=your_supabase_url
+      # - SUPABASE_SERVICE_KEY=your_supabase_key
+      # - SUPABASE_ANON_KEY=your_supabase_anon_key
+      # - MEETING_DIARY_PATH=meeting-diary
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/check-config"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Set a custom network
+    networks:
+      - meeting_diary_network
+
+volumes:
+  meeting_diary_data:
+    name: meeting_diary_data
+
+networks:
+  meeting_diary_network:
+    name: meeting_diary_network
+    driver: bridge
